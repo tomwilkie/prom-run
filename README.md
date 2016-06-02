@@ -5,7 +5,7 @@ Periodically run a command and exports its return code as a prometheus metric.
 ```
 Usage: ./prom-run (options) command...
   -listen-addr string
-    	Address to listen on (default ":8080")
+    	Address to listen on (default ":9152")
   -metric-name string
     	Metric name of exporter status code (default "status_code")
   -period duration
@@ -17,8 +17,8 @@ The output of the command is also made availible via HTTP at /.
 To run this, try:
 
 ```
-$ docker run -p 8080:8080 -ti tomwilkie/prom-run echo foo
-2016/06/02 11:49:08 Listening on address :8080
+$ docker run -p 9152:9152 -ti tomwilkie/prom-run echo foo
+2016/06/02 11:49:08 Listening on address :9152
 2016/06/02 11:49:18 Running 'echo' with argments [foo]
 2016/06/02 11:49:18 Command exited successfully
 ```

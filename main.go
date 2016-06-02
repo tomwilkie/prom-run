@@ -16,11 +16,21 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+var (
+	statusCode = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "command_exit_code",
+		Help: "Exit code of command.",
+	})
+	commandDuration = prometheus.NewSummary(prometheus.SummaryOpts{
+		Name: "command_duration_seconds",
+		Help: "Time spent running command.",
+	})
+)
+
 func main() {
 	var (
 		period     = flag.Duration("period", 10*time.Second, "Period with which to run the command.")
-		metricName = flag.String("metric-name", "status_code", "Metric name of exporter status code")
-		listenAddr = flag.String("listen-addr", ":8080", "Address to listen on")
+		listenAddr = flag.String("listen-addr", ":9152", "Address to listen on")
 	)
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s (options) command...\n", os.Args[0])
@@ -33,19 +43,6 @@ func main() {
 	}
 	command := flag.Args()[0]
 	args := flag.Args()[1:]
-
-	var (
-		statusCode = prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: *metricName,
-			Help: "Status code.",
-		})
-		commandDuration = prometheus.NewSummary(prometheus.SummaryOpts{
-			Name: "command_duration_nanoseconds",
-			Help: "Time spent running command.",
-		})
-	)
-	prometheus.MustRegister(statusCode)
-	prometheus.MustRegister(commandDuration)
 
 	var (
 		outputLock      sync.Mutex
@@ -65,7 +62,7 @@ func main() {
 			start := time.Now()
 			out, err := exec.Command(command, args...).CombinedOutput()
 			duration := time.Now().Sub(start)
-			commandDuration.Observe(float64(duration.Nanoseconds()))
+			commandDuration.Observe(duration.Seconds())
 
 			withLock(func() {
 				lastRunStart = start
@@ -105,6 +102,8 @@ func main() {
 		log.Fatalf("Failed to parse template: %v", err)
 	}
 
+	prometheus.MustRegister(statusCode)
+	prometheus.MustRegister(commandDuration)
 	http.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		withLock(func() {
 			tmpl.Execute(w, struct {
