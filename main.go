@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	reaper "github.com/ramr/go-reaper"
 )
 
 var (
@@ -28,6 +29,9 @@ var (
 )
 
 func main() {
+	// Forked processes might leave zombies, so reap them.
+	go reaper.Reap()
+
 	var (
 		period     = flag.Duration("period", 10*time.Second, "Period with which to run the command.")
 		listenAddr = flag.String("listen-addr", ":9152", "Address to listen on")
