@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	reaper "github.com/ramr/go-reaper"
 )
 
 var (
@@ -28,10 +27,20 @@ var (
 	})
 )
 
-func main() {
-	// Forked processes might leave zombies, so reap them.
-	go reaper.Reap()
+func reap() {
+	log.Printf("Reaping children")
+	var wstatus syscall.WaitStatus
+	for {
+		pid, err := syscall.Wait4(-1, &wstatus, 0, nil)
+		if err == syscall.ECHILD {
+			// No more children to reap, stop
+			return
+		}
+		log.Printf("Reaped child %d, wstatus=%+v, err=%v", pid, wstatus, err)
+	}
+}
 
+func main() {
 	var (
 		period     = flag.Duration("period", 10*time.Second, "Period with which to run the command.")
 		listenAddr = flag.String("listen-addr", ":9152", "Address to listen on")
@@ -73,6 +82,8 @@ func main() {
 				lastRunDuration = duration
 				outputBuf = out
 			})
+
+			reap()
 
 			if err != nil {
 				if exiterr, ok := err.(*exec.ExitError); ok {
