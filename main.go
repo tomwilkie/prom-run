@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"html/template"
@@ -40,9 +41,15 @@ func reap() {
 	}
 }
 
+type pair struct {
+	out []byte
+	err error
+}
+
 func main() {
 	var (
 		period     = flag.Duration("period", 10*time.Second, "Period with which to run the command.")
+		timeout    = flag.Duration("timeout", 10*time.Minute, "Amount of time to give the command to run.")
 		listenAddr = flag.String("listen-addr", ":9152", "Address to listen on")
 	)
 	flag.Usage = func() {
@@ -71,9 +78,29 @@ func main() {
 
 	go func() {
 		for range time.Tick(*period) {
-			log.Printf("Running '%s' with argments %v", command, args)
 			start := time.Now()
-			out, err := exec.Command(command, args...).CombinedOutput()
+			log.Printf("Running '%s' with argments %v", command, args)
+			ctx, cancel := context.WithCancel(context.Background())
+			cmd := exec.CommandContext(ctx, command, args...)
+			result := make(chan pair)
+
+			go func() {
+				out, err := cmd.CombinedOutput()
+				result <- pair{out, err}
+			}()
+
+			var out []byte
+			var err error
+			select {
+			case pair := <-result:
+				out = pair.out
+				err = pair.err
+			case <-time.After(*timeout):
+				out = []byte("command timed out")
+				err = fmt.Errorf("command timed out")
+				cancel()
+			}
+
 			duration := time.Now().Sub(start)
 			commandDuration.Observe(duration.Seconds())
 
