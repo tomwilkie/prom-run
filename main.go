@@ -29,7 +29,7 @@ var (
 )
 
 func reap() {
-	log.Printf("Reaping children")
+	log.Debugf("Reaping children")
 	var wstatus syscall.WaitStatus
 	for {
 		pid, err := syscall.Wait4(-1, &wstatus, 0, nil)
@@ -37,7 +37,7 @@ func reap() {
 			// No more children to reap, stop
 			return
 		}
-		log.Printf("Reaped child %d, wstatus=%+v, err=%v", pid, wstatus, err)
+		log.Debugf("Reaped child %d, wstatus=%+v, err=%v", pid, wstatus, err)
 	}
 }
 
@@ -79,7 +79,7 @@ func main() {
 	go func() {
 		for range time.Tick(*period) {
 			start := time.Now()
-			log.Printf("Running '%s' with argments %v", command, args)
+			log.Infof("Running '%s' with argments %v", command, args)
 			ctx, cancel := context.WithCancel(context.Background())
 			cmd := exec.CommandContext(ctx, command, args...)
 			result := make(chan pair)
@@ -116,12 +116,14 @@ func main() {
 				if exiterr, ok := err.(*exec.ExitError); ok {
 					if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 						code := status.ExitStatus()
-						log.Printf("Command exited with code: %d", code)
+						log.Infof("Command exited with code: %d", code)
 						statusCode.Set(float64(code))
 						continue
 					}
 				}
-				log.Printf("Error running command: %v", err)
+				log.Warnf("Error running command: %v", err)
+				log.Printf("Output:\n%s", pair.out)
+				log.Printf("Error:\n%s", pair.err)
 				statusCode.Set(255)
 				continue
 			}
