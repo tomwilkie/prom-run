@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -122,8 +122,7 @@ func main() {
 					}
 				}
 				log.Warnf("Error running command: %v", err)
-				log.Printf("Output:\n%s", pair.out)
-				log.Printf("Error:\n%s", pair.err)
+				log.Printf("Output:\n%s", out)
 				statusCode.Set(255)
 				continue
 			}

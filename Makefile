@@ -5,3 +5,6 @@ prom-run: main.go
 
 .uptodate: prom-run Dockerfile
 	docker build -t tomwilkie/prom-run .
+
+clean:
+	rm -f prom-rum .uptodate
