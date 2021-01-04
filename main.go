@@ -8,30 +8,40 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 )
 
 var (
-	statusCode = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "command_exit_code",
-		Help: "Exit code of command.",
-	})
-	commandDuration = prometheus.NewSummary(prometheus.SummaryOpts{
-		Name: "command_duration_seconds",
+	statusCode = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "promrun_command_exits_total",
+		Help: "Counts the number of times the command ran by exit code.",
+	}, []string{"code"})
+	commandDuration = promauto.NewSummary(prometheus.SummaryOpts{
+		Name: "promrun_command_duration_seconds",
 		Help: "Time spent running command.",
 	})
+	lastSuccessTimestamp = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "promrun_command_last_success_timestamp_seconds",
+		Help: "The timestamp of the last successful run.",
+	})
+	lastRunTimestamp = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "promrun_command_last_run_timestamp_seconds",
+		Help: "The timestamp of the last run.",
+	})
+	lastRunDurationSec = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "promrun_command_last_run_duration_seconds",
+		Help: "The duration of the last run.",
+	})
 )
-
-func init() {
-	prometheus.MustRegister(statusCode)
-	prometheus.MustRegister(commandDuration)
-}
 
 var (
 	period     = flag.Duration("period", 10*time.Second, "Period with which to run the command.")
@@ -89,7 +99,7 @@ func main() {
 			Duration: lastRunDuration,
 		})
 	}))
-	http.Handle("/metrics", prometheus.Handler())
+	http.Handle("/metrics", promhttp.Handler())
 
 	log.Printf("Listening on address %s", *listenAddr)
 	if err := http.ListenAndServe(*listenAddr, nil); err != nil {
@@ -111,7 +121,9 @@ func run(command string, args []string) {
 	reap()
 
 	duration := time.Now().Sub(start)
+	lastRunTimestamp.SetToCurrentTime()
 	commandDuration.Observe(duration.Seconds())
+	lastRunDurationSec.Set(duration.Seconds())
 
 	outputLock.Lock()
 	outputBuf = out
@@ -121,21 +133,22 @@ func run(command string, args []string) {
 
 	if err == nil {
 		log.Printf("Command exited successfully")
-		statusCode.Set(0)
+		statusCode.WithLabelValues("0").Inc()
+		lastSuccessTimestamp.SetToCurrentTime()
 	} else {
 		if exiterr, ok := err.(*exec.ExitError); ok {
 			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 				code := status.ExitStatus()
 				log.Infof("Command exited with code: %d", code)
 				log.Printf("Output:\n%s", out)
-				statusCode.Set(float64(code))
+				statusCode.WithLabelValues(strconv.Itoa(code)).Inc()
 				return
 			}
 		}
 
 		log.Warnf("Error running command: %v", err)
 		log.Printf("Output:\n%s", out)
-		statusCode.Set(255)
+		statusCode.WithLabelValues("255").Inc()
 	}
 }
 
