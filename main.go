@@ -79,6 +79,10 @@ func main() {
 	args := flag.Args()[1:]
 
 	go func() {
+		// Run once immediately at startup
+		run(command, args)
+
+		// Then start the delay loop
 		for range time.Tick(*period) {
 			run(command, args)
 		}
