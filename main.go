@@ -136,7 +136,8 @@ func run(command string, args []string) {
 	outputLock.Unlock()
 
 	if err == nil {
-		log.Printf("Command exited successfully")
+		log.Println("Command exited successfully")
+		log.Println("Output: ", string(out))
 		statusCode.WithLabelValues("0").Inc()
 		lastSuccessTimestamp.SetToCurrentTime()
 	} else {
